@@ -2,7 +2,7 @@ const api = require('node-telegram-bot-api')
 const token = '5727778025:AAG7Knt5kXBcpijxpdR2NcPw1Ik6wgaAoCY';
 const bot = new api(token, {polling: true})
 
-const scripters_chat = -1001869768154
+const scripters_chat = -1001668697872
 const orderState = {
     none : 0,
     typeSelection: 1,
@@ -37,7 +37,7 @@ const users = {
 
 //orders
 const orders = [
-    {
+    /*{
         sender: {username: 'ya_chapo', id: -1},
         chat_id: -1,
         notification_message_id: -1,
@@ -47,10 +47,14 @@ const orders = [
         done: false,
         price: 'none',
         comment: 'none'
-    }
+    }*/
 ] 
 
-
+const mainKeyboard = [
+    ['🛎️ Заказать'],
+    ['🧑‍💻 Список исполнителей'],
+    ['⭐ Оставить отзыв']
+] 
 
 bot.on('message', async msg => {
     const text = msg.text
@@ -65,53 +69,86 @@ bot.on('message', async msg => {
             orders: []
         }
     }
-    
-    console.log(msg)
 
-    if (text == '/get_chat_id') { return await bot.sendMessage(msg.chat.id, `Chat ID: ${msg.chat.id}`) }
-    if (text === '/buy') {
+    if (users[toString(senderId)].developer) {
+        if (text.includes('/ban')) {
+            const banUser = text.match('/ban (.+)')[1]
+            if (!banUser) {
+                return await bot.sendMessage(msg.chat.id, 'Ошибка, введите айди')
+            }
+            if (!users[banUser.toString()]) {
+                return await bot.sendMessage(msg.chat.id, 'Ошибка, пользователь не найден')
+            }
+            users[banUser.toString()].banned = true
+            return await bot.sendMessage(msg.chat.id, 'Пользователь заблокирован!')
+        }
+    }
+    
+    if (text == '/start') {
+        bot.sendMessage(msg.chat.id, 'Привет, меня зовут <b>DevSearch Bot</b>, что бы заказать проект на <b>Lua, JavaScript, TypeScript, Python или C++</b> нажмите на кнопку <b>"🛎️ Заказать"</b> или введите команду /buy', {
+            reply_markup: { 
+                keyboard: mainKeyboard,
+                parse_mode: 'HTML'
+            },
+        }
+        )
+    }else if (text == '/get_chat_id') { 
+        return await bot.sendMessage(msg.chat.id, `Chat ID: ${msg.chat.id}`) 
+    }else if (text === '/buy' || text == '🛎️ Заказать') {
         users[toString(senderId)].state = orderState.priceSelection
         return await bot.sendMessage(
             msg.chat.id, 'Отлично, сколько вы готовы заплатить за заказ?', {reply_markup: JSON.stringify({
                 inline_keyboard: [
-                    [{text: '100 - 500 рублей', callback_data: 'price:100 - 500 руб.'}],
+                    [{text: '100 - 300 рублей', callback_data: 'price:100 - 300 руб.'}, {text: '300 - 500 рублей', callback_data: 'price:300 - 500 руб.'}, {text: '100 - 500 рублей', callback_data: 'price:500 - 1000 руб.'}],
+                    [{text: 'Договорится с исполнителем', callback_data: 'price:Договорная'}],
+                    [{text: 'Отмена', callback_data: 'price_cancel'}]
                 ]
-            })}/*, 
-            {
-                reply_markup: JSON.stringify({
-                    inline_keyboard: [
-                        [{text: '100 - 500 рублей', callback_data: 'price:100 - 500 руб.'}], 
-                        [{text: 'Договорится о цене с исполнителем', callback_data: 'price:Договорная'}]
-                        [{text: 'Отмена', callback_data: 'cancel'}]
-                    ]
-                })
-            }*/
+            })}
         )
-    } 
+    } else if (text == '🧑‍💻 Список исполнителей') {
+
+    } else if (text == '⭐ Оставить отзыв') {
+        return await bot.sendMessage(msg.chat.id, '<b><a href="https://www.blast.hk/threads/161825/">Оставить отзыв</a></b>', {parse_mode: 'HTML'})
+    }
     
     
 
     if (users[toString(senderId)].state == orderState.message) {
-        if (text.length < 24) {
-            return await bot.sendMessage(msg.chat.id, 'Ошибка, текст слишком короткий (минимум: 23 символа)')
+        if (text.length <= 24) {
+            return await bot.sendMessage(msg.chat.id, 'Ошибка, текст слишком короткий (минимум: 24 символа)')
         }
         users[toString(senderId)].state = orderState.none
-        const this_order_id = orders.length + 1
-        await bot.sendMessage(msg.chat.id, `Новый заказ! #${this_order_id}, @${sender} (${senderId}), ${users[toString(senderId)].new_order.price}, ${users[toString(senderId)].new_order.comment}`, {reply_markup:JSON.stringify({ inline_keyboard: [[{text: 'Принять заказ', callback_data: `take_order:${this_order_id}`}]]})})
+        users[toString(senderId)].new_order.comment = text
+        const this_order_id = orders.length
+        const notification = await bot.sendMessage(
+            scripters_chat, 
+            `🔔<b>Заказ </b> #${this_order_id} от @${sender} (id:<code>${msg.from.id}</code>)
+    • 💰<b>Цена: </b>${users[toString(senderId)].new_order.price}
+    • 💬<b>Комментарий: </b> ${users[toString(senderId)].new_order.comment}
+            
+    <b>Статус:</b> ✅Свободен
+            `,
+            {
+                reply_markup: JSON.stringify({ inline_keyboard: [[{text: 'Принять заказ', callback_data: `take_order:${this_order_id}`}]]}), 
+                parse_mode: 'HTML'
+            }
+        )
+        console.log('notification')
+        console.log(notification)
         orders.push(
             {
                 sender: {username: sender, id: senderId},
-                chat_id: msg.chat.id,
-                notification_message_id: -1,
+                chat_id: notification.chat.id,
+                notification_message_id: notification.message_id,
                 taken: false,
                 date: {created: 'none', taken: 'none'},
                 taken_by: {username: 'ya_chapo_dev', id: -1},
                 done: false,
-                price: 'none',
-                comment: 'none'
+                price: users[toString(senderId)].new_order.price,
+                comment: users[toString(senderId)].new_order.comment
             }
         )
-        return await bot.sendMessage(msg.chat.id, 'Ура! Ваш заказ отправлен разработчикам!')
+        return await bot.sendMessage(msg.chat.id, '✅Готово! Ваш заказ отправлен разработчикам!')
     }
 })
 
@@ -132,7 +169,7 @@ bot.on('callback_query', async msg => {
     }
 
     if (data.includes('take_order:')) {
-        const order_id = data.match('take_order:(.+)')
+        const order_id = data.match('take_order:(.+)')[1]
         if (!order_id) { 
             return await bot.sendMessage(senderId, 'Ошибка, order_id = null')
         }
@@ -147,17 +184,35 @@ bot.on('callback_query', async msg => {
         orders[Number(order_id)].taken = true
         orders[Number(order_id)].taken_by = {username: sender, id: senderId}
         // edit message  list[Number(order_id)].notification_message_id
+        await bot.editMessageText(`🔔<b>Заказ </b> #${order_id} от @${orders[Number(order_id)].sender.username} (id:<code>${orders[Number(order_id)].sender.id}</code>)
+        • 💰<b>Цена: </b>${orders[Number(order_id)].price}
+        • 💬<b>Комментарий: </b> ${orders[Number(order_id)].comment}
+                
+        <b>Статус:</b> ❌Занят, принял: @${sender} (id:<code>${senderId}</code>))`, {
+            message_id: orders[Number(order_id)].notification_message_id,
+            chat_id: scripters_chat,
+            parse_mode: 'HTML'
+        })
+        //bot.sendMessage(orders[Number(order_id)].chat_id, )
+        //await bot.sendMessage(orders[Number(order_id)].chat_id, `Разработчик @${sender}(id:<code>${senderId}</code>) принял ваш заказ #${order_id}!`, {parse_mode: 'HTML'})
         console.log(`Разработчик @${sender} принял заказ #${order_id} (от @${orders[Number(order_id)].sender.username})`)
     }
 
+    if (data == 'price_cancel' || data == 'comment_cancel') {
+        users[toString(senderId)].state = orderState.none
+        return await bot.sendMessage(senderId, 'Отменено.')
+    }
     if (data.includes('price:')) {
         console.log('price selected!')
-        const price = data.match('price:(.+)')
+        const price = data.match('price:(.+)')[1]
         if (!price) { return await bot.sendMessage(senderId, 'error, price is null') }
 
+        console.log('user price set to', price, 'was', data)
         users[toString(senderId)].new_order.price = price
         users[toString(senderId)].state = orderState.message
-        return await bot.sendMessage(senderId, 'Хорошо, теперь подробно опиши то что тебе нужно (укажите язык)')
+        return await bot.sendMessage(senderId, 'Хорошо, теперь подробно опиши то что тебе нужно (укажите язык)', {reply_markup: JSON.stringify({
+            inline_keyboard: [[{text: 'Отмена', callback_data: 'comment_cancel'}]]})}
+        )
     }
     
 })
