@@ -74,6 +74,8 @@ bot.on('message', async msg => {
             }
         }
 
+       
+
         // dev commands
         if (users[senderId].developer) {
             if (text == '/banlist') {
@@ -81,7 +83,7 @@ bot.on('message', async msg => {
             } else if (text.includes('/ban')) {
                 let banUser = text.match('/ban (.+)')
                 if (!banUser) { return await bot.sendMessage(msg.chat.id, 'Ошибка, введите айди') }
-                banlist.push(Number(senderId))
+                banlist.push(Number(banUser[1]))
                 return await bot.sendMessage(msg.chat.id, `Пользователь ${banUser[1]} заблокирован!`)
             } else if (text.includes('/unban')) {
                 let banUser = text.match('/unban (.+)')
@@ -99,10 +101,10 @@ bot.on('message', async msg => {
 
         // is user banned
         if (banlist.includes(senderId)) {
-            return await bot.sendMessage(msg.chat.id, '❌ Ошибка, вы заблокированы!')
+            return await bot.sendPhoto(msg.chat.id, 'https://cdn.discordapp.com/attachments/854686750168186880/1055096544094855178/image.png', {caption: '❌ Ошибка, вы заблокированы!'})
         }
 
-        if (msg.chat.type != 'private' && msg.chat.id != scripters_chat) { return await bot.sendMessage(msg.chat.id, 'Ошибка, для заказа напишите мне в личные сообщения') }
+        if (msg.chat.type != 'private' && msg.chat.id != scripters_chat) { return }
         
         if (text == '/start') {
             bot.sendMessage(msg.chat.id, 'Привет, меня зовут <b>DevSearch Bot</b>, что бы заказать проект на <b>Lua, JavaScript, TypeScript, Python или C++</b> нажмите на кнопку <b>"🛎️ Заказать"</b> или введите команду /buy', 
@@ -133,34 +135,44 @@ bot.on('message', async msg => {
                 if (text.length <= 24) {
                     return await bot.sendMessage(msg.chat.id, 'Ошибка, текст слишком короткий (минимум: 24 символа)')
                 }
-                users[senderId].state = orderState.none
-                users[senderId].new_order.comment = text
-                const this_order_id = orders.length
-                const notification = await bot.sendMessage(
-                    scripters_chat, 
-                    `🔔<b>Заказ </b> #${this_order_id} от @${sender} (id:<code>${msg.from.id}</code>)\n• 💰<b>Цена: </b>${users[senderId].new_order.price}\n• 💬<b>Комментарий: </b> ${users[senderId].new_order.comment}\n-\n<b>Статус:</b> ✅Свободен`,
-                    {
-                        reply_markup: JSON.stringify({ inline_keyboard: [[{text: 'Принять заказ', callback_data: `take_order:${this_order_id}`}]]}), 
-                        parse_mode: 'HTML'
-                    }
-                )
-                console.log('notification')
-                console.log(notification)
-                orders.push(
-                    {
-                        sender: {username: sender, id: senderId},
-                        chat_id: notification.chat.id,
-                        notification_message_id: notification.message_id,
-                        taken: false,
-                        date: {created: 'none', taken: 'none'},
-                        taken_by: {username: 'ya_chapo_dev', id: -1},
-                        done: false,
-                        price: users[senderId].new_order.price,
-                        comment: users[senderId].new_order.comment
-                    }
-                )
-                bot.pinChatMessage(scripters_chat, notification.message_id)
-                return await bot.sendMessage(msg.chat.id, '✅Готово! Ваш заказ отправлен разработчикам!')
+                
+                
+                // anti flood
+                const cooldown = users[senderId].last_message + 300000 - Date.now()
+                if (cooldown <= 0) {
+                    users[senderId].state = orderState.none
+                    users[senderId].new_order.comment = text
+                    const this_order_id = orders.length
+                    const notification = await bot.sendMessage(
+                        scripters_chat, 
+                        //`🔔<b>Новый заказ!</b>\n🙍‍♂️<b>Заказчик:</b>@${orders[Number(order_id)].sender.username} (id:<code>${orders[Number(order_id)].sender.id}</code>)\n💰<b>Цена: </b>${orders[Number(order_id)].price}\n💬<b>Комментарий: </b> ${orders[Number(order_id)].comment}\n\n❌ <b>Статус:</b> Занят, принял: @${sender} (id:<code>${senderId}</code>)`, {
+                        `🔔<b>Новый заказ!</b>\n🙍‍♂️<b>Заказчик:</b> @${sender} (id:<code>${msg.from.id}</code>)\n💰<b>Цена: </b>${users[senderId].new_order.price}\n💬<b>Комментарий: </b> ${users[senderId].new_order.comment}\n\n✅<b>Статус:</b> Свободен`,
+                        {
+                            reply_markup: JSON.stringify({ inline_keyboard: [[{text: 'Принять заказ', callback_data: `take_order:${this_order_id}`}]]}), 
+                            parse_mode: 'HTML'
+                        }
+                    )
+                    console.log('notification')
+                    console.log(notification)
+                    orders.push(
+                        {
+                            sender: {username: sender, id: senderId},
+                            chat_id: notification.chat.id,
+                            notification_message_id: notification.message_id,
+                            taken: false,
+                            date: {created: 'none', taken: 'none'},
+                            taken_by: {username: 'ya_chapo_dev', id: -1},
+                            done: false,
+                            price: users[senderId].new_order.price,
+                            comment: users[senderId].new_order.comment
+                        }
+                    )
+                    bot.pinChatMessage(scripters_chat, notification.message_id)
+                    users[senderId].last_message = Date.now()
+                    return await bot.sendMessage(msg.chat.id, '✅Готово! Ваш заказ отправлен разработчикам!')
+                } else {
+                    return await bot.sendMessage(msg.chat.id, `❌ Недоступно, подождите еще ${Math.floor(cooldown / 1000)} секунд!`)
+                }
             }
         }
     } catch(err) {
@@ -175,10 +187,13 @@ bot.on('callback_query', async msg => {
     const senderId = msg.from.id
     console.log(msg)
     
+    
     try {
         if (banlist.includes(senderId)) { return await bot.sendMessage(msg.chat.id, '❌ Ошибка, вы заблокированы!') }
-        if (!users[senderId]) { return await bot.sendMessage(senderId, 'Что-то пошло не так, используйте /start :(') }
+        //if (!users[senderId]) { return await bot.sendMessage(senderId, 'Что-то пошло не так, используйте /start :(') }
         if (!sender) { return await bot.sendMessage(senderId, 'callback_query -> !sender') }
+
+        // take order
         if (data.includes('take_order:')) {
             const order_id = data.match('take_order:(.+)')[1]
             if (!order_id) { return await bot.sendMessage(senderId, 'Ошибка, order_id = null') }
@@ -195,6 +210,8 @@ bot.on('callback_query', async msg => {
             await bot.unpinChatMessage(scripters_chat, {message_id: orders[Number(order_id)].notification_message_id})
             console.log(`Разработчик @${sender} принял заказ #${order_id} (от @${orders[Number(order_id)].sender.username})`)
         }
+
+        // cancel order
         if (data.includes('cancel_order:')) {
             const order_id = data.match('cancel_order:(.+)')[1]
             if (!order_id) { return await bot.sendMessage(senderId, 'Ошибка, order_id = null') }
@@ -209,10 +226,30 @@ bot.on('callback_query', async msg => {
                     parse_mode: 'HTML',
                     reply_markup: JSON.stringify({ inline_keyboard: [[{text: `✅ Принять`, callback_data: `take_order:${order_id}`}]]}), 
                 })
-                await bot.unpinChatMessage(scripters_chat, {message_id: orders[Number(order_id)].notification_message_id})
                 console.log(`Разработчик @${sender} ОТМЕНИЛ заказ #${order_id} (от @${orders[Number(order_id)].sender.username})`)
             } else {
-                
+                return await bot.answerCallbackQuery(msg.id, {show_alert: true, text: '❌ Отменить заказ может только тот, кто его принял!', callback_query_id: msg.id})
+            }
+        }
+
+        // mark order as done
+        if (data.includes('done_order:')) {
+            const order_id = data.match('done_order:(.+)')[1]
+            if (!order_id) { return await bot.sendMessage(senderId, 'Ошибка, order_id = null') }
+            if (!orders[Number(order_id)]) { return await bot.sendMessage(senderId, `Ошибка, заказ #${order_id} не найден!`) }
+            //if (orders[Number(order_id)].taken) { return await bot.sendMessage(senderId, `Ошибка, заказ #${order_id} уже принят! (взял: @${orders[Number(order_id)].taken_by.username}`) } 
+            if (senderId == orders[Number(order_id)].taken_by.id) {
+                orders[Number(order_id)].done = true
+                await bot.editMessageText(`✅<b>Выполнил:</b> @${orders[Number(order_id)].taken_by.username}\n🔔<b>Заказ </b> #${order_id} от @${orders[Number(order_id)].sender.username} (id:<code>${orders[Number(order_id)].sender.id}</code>)\n💰<b>Цена: </b>${orders[Number(order_id)].price}\n💬<b>Комментарий: </b> ${orders[Number(order_id)].comment}`, {
+                    message_id: orders[Number(order_id)].notification_message_id,
+                    chat_id: scripters_chat,
+                    parse_mode: 'HTML',
+                    //reply_markup: JSON.stringify({ inline_keyboard: [[{text: `✅ Принять`, callback_data: `take_order:${order_id}`}]]}), 
+                })
+                await bot.unpinChatMessage(scripters_chat, {message_id: orders[Number(order_id)].notification_message_id})
+                console.log(`Разработчик @${sender} ВЫПОЛНИЛ заказ #${order_id} (от @${orders[Number(order_id)].sender.username})`)
+            } else {
+                return await bot.answerCallbackQuery(msg.id, {show_alert: true, text: '❌ Отметить заказ как "выполнен" может только тот, кто его принял!', callback_query_id: msg.id})
             }
         }
     
@@ -234,3 +271,18 @@ bot.on('callback_query', async msg => {
         //return await bot.sendMessage(senderId, `ERROR IN 'callback_query':\n${err}`)
     }
 })
+
+
+const LANG = {
+    RU: 0,
+    EN: 1
+}
+const lang = LANG.RU
+const text = {
+    hello: [
+        'Привет',
+        'Hello'
+    ]
+}
+
+console.log(text.hello[lang])
