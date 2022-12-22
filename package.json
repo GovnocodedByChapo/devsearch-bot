@@ -1,5 +1,5 @@
 {
-  "name": "BlastScripts",
+  "name": "devsearch-tg-bot",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -12,6 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "node-telegram-bot-api": "^0.60.0",
-    "nodemon": "^2.0.20"
+    "nodemon": "^2.0.20",
+    "reactive-json-file": "^2.0.0",
+    "url-regex": "^5.0.0"
   }
 }
